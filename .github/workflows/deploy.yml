@@ -116,11 +116,11 @@ jobs:
 
             if [ ! -f .env ]; then
               echo "Notice: Creating ~/agentic/.env from deployment variables..."
-              cat << EOF > .env
-DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
-NEXT_PUBLIC_API_URL=https://api.dabelwal.online
-NEXT_PUBLIC_LIVEKIT_URL=wss://livekit.dabelwal.online
-EOF
+              {
+                echo "DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}"
+                echo "NEXT_PUBLIC_API_URL=https://api.dabelwal.online"
+                echo "NEXT_PUBLIC_LIVEKIT_URL=wss://livekit.dabelwal.online"
+              } > .env
             fi
 
             export DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME}"
@@ -175,23 +175,23 @@ EOF
             # If no .env exists on host, bootstrap it from deployment secrets
             if [ ! -f .env ]; then
               echo "Notice: Creating ~/agentic/.env from deployment secrets..."
-              cat << EOF > .env
-DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
-NODE_ENV=production
-PORT=4000
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-POSTGRES_DB=agentic
-REDIS_URL=redis://redis:6379
-BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-default_better_auth_secret_key_32_chars}
-BETTER_AUTH_URL=https://api.dabelwal.online
-WEB_ORIGIN=https://agentic.dabelwal.online
-LIVEKIT_URL=wss://livekit.dabelwal.online
-LIVEKIT_API_KEY=devkey
-LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret_must_be_at_least_32_characters_long}
-GEMINI_API_KEY=${GEMINI_API_KEY}
-OPENAI_API_KEY=${OPENAI_API_KEY}
-EOF
+              {
+                echo "DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}"
+                echo "NODE_ENV=production"
+                echo "PORT=4000"
+                echo "POSTGRES_USER=postgres"
+                echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}"
+                echo "POSTGRES_DB=agentic"
+                echo "REDIS_URL=redis://redis:6379"
+                echo "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-default_better_auth_secret_key_32_chars}"
+                echo "BETTER_AUTH_URL=https://api.dabelwal.online"
+                echo "WEB_ORIGIN=https://agentic.dabelwal.online"
+                echo "LIVEKIT_URL=wss://livekit.dabelwal.online"
+                echo "LIVEKIT_API_KEY=devkey"
+                echo "LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret_must_be_at_least_32_characters_long}"
+                echo "GEMINI_API_KEY=${GEMINI_API_KEY}"
+                echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+              } > .env
             fi
 
             export DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME}"
@@ -255,16 +255,16 @@ EOF
             # If no .env exists on host, bootstrap it from GitHub Secrets
             if [ ! -f .env ]; then
               echo "Notice: Creating ~/agentic/.env from deployment secrets..."
-              cat << EOF > .env
-DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
-LIVEKIT_URL=ws://127.0.0.1:7880
-LIVEKIT_API_KEY=devkey
-LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret_must_be_at_least_32_characters_long}
-API_URL=https://api.dabelwal.online
-OPENAI_API_KEY=${OPENAI_API_KEY}
-OPENAI_REALTIME_MODEL=gpt-realtime-mini
-GEMINI_API_KEY=${GEMINI_API_KEY}
-EOF
+              {
+                echo "DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}"
+                echo "LIVEKIT_URL=ws://127.0.0.1:7880"
+                echo "LIVEKIT_API_KEY=devkey"
+                echo "LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret_must_be_at_least_32_characters_long}"
+                echo "API_URL=https://api.dabelwal.online"
+                echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+                echo "OPENAI_REALTIME_MODEL=gpt-realtime-mini"
+                echo "GEMINI_API_KEY=${GEMINI_API_KEY}"
+              } > .env
             fi
 
             export DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME}"
