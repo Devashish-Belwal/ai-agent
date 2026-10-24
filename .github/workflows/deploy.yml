@@ -97,11 +97,14 @@ jobs:
 
       - name: Deploy to EC2 Frontend
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         with:
           host: ${{ secrets.EC2_FRONTEND_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT || 22 }}
+          envs: DOCKERHUB_USERNAME
           script: |
             set -e
             mkdir -p ~/agentic/infra/caddy
@@ -111,7 +114,16 @@ jobs:
               cp infra/.env .env
             fi
 
-            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+            if [ ! -f .env ]; then
+              echo "Notice: Creating ~/agentic/.env from deployment variables..."
+              cat << EOF > .env
+DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
+NEXT_PUBLIC_API_URL=https://api.dabelwal.online
+NEXT_PUBLIC_LIVEKIT_URL=wss://livekit.dabelwal.online
+EOF
+            fi
+
+            export DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME}"
 
             docker compose -f infra/docker-compose.web.yml pull
             docker compose -f infra/docker-compose.web.yml up -d --remove-orphans
@@ -138,11 +150,19 @@ jobs:
 
       - name: Deploy to EC2 Backend & DB
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
         with:
           host: ${{ secrets.EC2_BACKEND_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT || 22 }}
+          envs: DOCKERHUB_USERNAME,BETTER_AUTH_SECRET,LIVEKIT_API_SECRET,OPENAI_API_KEY,GEMINI_API_KEY,POSTGRES_PASSWORD
           script: |
             set -e
             mkdir -p ~/agentic/infra/caddy
@@ -152,7 +172,29 @@ jobs:
               cp infra/.env .env
             fi
 
-            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+            # If no .env exists on host, bootstrap it from deployment secrets
+            if [ ! -f .env ]; then
+              echo "Notice: Creating ~/agentic/.env from deployment secrets..."
+              cat << EOF > .env
+DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
+NODE_ENV=production
+PORT=4000
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+POSTGRES_DB=agentic
+REDIS_URL=redis://redis:6379
+BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-default_better_auth_secret_key_32_chars}
+BETTER_AUTH_URL=https://api.dabelwal.online
+WEB_ORIGIN=https://agentic.dabelwal.online
+LIVEKIT_URL=wss://livekit.dabelwal.online
+LIVEKIT_API_KEY=devkey
+LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret_must_be_at_least_32_characters_long}
+GEMINI_API_KEY=${GEMINI_API_KEY}
+OPENAI_API_KEY=${OPENAI_API_KEY}
+EOF
+            fi
+
+            export DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME}"
 
             docker compose -f infra/docker-compose.api.yml pull
             docker compose -f infra/docker-compose.api.yml up -d postgres redis
@@ -190,11 +232,17 @@ jobs:
 
       - name: Deploy to EC2 LiveKit & Voice
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         with:
           host: ${{ secrets.EC2_VOICE_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT || 22 }}
+          envs: DOCKERHUB_USERNAME,LIVEKIT_API_SECRET,OPENAI_API_KEY,GEMINI_API_KEY
           script: |
             set -e
             mkdir -p ~/agentic/infra/caddy ~/agentic/infra/livekit
@@ -204,7 +252,22 @@ jobs:
               cp infra/.env .env
             fi
 
-            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+            # If no .env exists on host, bootstrap it from GitHub Secrets
+            if [ ! -f .env ]; then
+              echo "Notice: Creating ~/agentic/.env from deployment secrets..."
+              cat << EOF > .env
+DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
+LIVEKIT_URL=ws://127.0.0.1:7880
+LIVEKIT_API_KEY=devkey
+LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret_must_be_at_least_32_characters_long}
+API_URL=https://api.dabelwal.online
+OPENAI_API_KEY=${OPENAI_API_KEY}
+OPENAI_REALTIME_MODEL=gpt-realtime-mini
+GEMINI_API_KEY=${GEMINI_API_KEY}
+EOF
+            fi
+
+            export DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME}"
 
             docker compose -f infra/docker-compose.voice.yml pull
             docker compose -f infra/docker-compose.voice.yml up -d --remove-orphans
