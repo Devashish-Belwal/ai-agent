@@ -19,19 +19,16 @@ ENV NEXT_PUBLIC_LIVEKIT_URL=$NEXT_PUBLIC_LIVEKIT_URL
 
 RUN cd apps/web && bun run build
 
-FROM node:22-alpine AS runner
+FROM oven/bun:1.3.14-slim AS runner
 
 WORKDIR /app
 
+COPY --from=builder /app /app
+
 ENV NODE_ENV=production
 ENV PORT=3000
-
-COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./.next/static
-COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./public
-COPY --from=builder /app/apps/web/public ./apps/web/public
+ENV HOSTNAME="0.0.0.0"
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "if [ -f server.js ]; then node server.js; else node apps/web/server.js; fi"]
+CMD ["bun", "run", "--cwd", "apps/web", "start"]

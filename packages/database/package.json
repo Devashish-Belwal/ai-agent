@@ -8,8 +8,8 @@
   "scripts": {
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy || prisma db push",
-    "db:push": "prisma db push"
+    "db:migrate:deploy": "prisma migrate deploy || prisma db push --accept-data-loss",
+    "db:push": "prisma db push --accept-data-loss"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
