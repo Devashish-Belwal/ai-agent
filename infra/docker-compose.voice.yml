@@ -1,0 +1,46 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: agentic_livekit_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile.livekit:/etc/caddy/Caddyfile
+      - caddy_livekit_data:/data
+      - caddy_livekit_config:/config
+    depends_on:
+      - livekit
+
+  livekit:
+    image: livekit/livekit-server:v1.13.10
+    container_name: agentic_livekit_server
+    restart: always
+    command: --config /etc/livekit.yaml
+    environment:
+      - "LIVEKIT_KEYS=${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-secret_must_be_at_least_32_characters_long}"
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit.yaml
+    ports:
+      - "7880:7880"
+      - "50000-60000:50000-60000/udp"
+
+  voice-agent:
+    image: ${DOCKERHUB_USERNAME:-dabelwal}/agentic-voice-agent:latest
+    container_name: agentic_voice_worker
+    restart: always
+    environment:
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - API_URL=https://api.dabelwal.online
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_REALTIME_MODEL=${OPENAI_REALTIME_MODEL:-gpt-realtime-mini}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - livekit
+
+volumes:
+  caddy_livekit_data:
+  caddy_livekit_config:

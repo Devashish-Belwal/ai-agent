@@ -1,0 +1,22 @@
+{
+  "name": "@workspace/rag-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^2.30.0",
+    "@workspace/database": "workspace:*",
+    "@workspace/protocol": "workspace:*",
+    "openai": "^4.85.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@workspace/typescript-config": "workspace:*",
+    "typescript": "^5.7.0"
+  }
+}

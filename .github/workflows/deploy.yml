@@ -1,0 +1,212 @@
+name: CI/CD Multi-Instance Deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Generate Prisma Client
+        run: bun run --cwd packages/database db:generate
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/agentic"
+
+      - name: Run Typecheck
+        run: bun run typecheck
+
+  build-and-push:
+    name: Build & Push Docker Images
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & Push API Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/agentic-api:latest
+
+      - name: Build & Push Web Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/agentic-web:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://api.dabelwal.online
+            NEXT_PUBLIC_LIVEKIT_URL=wss://livekit.dabelwal.online
+
+      - name: Build & Push Voice Agent Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/voice-agent/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/agentic-voice-agent:latest
+
+  deploy-frontend:
+    name: Deploy Frontend (Instance 1)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync Infra configurations to EC2 Frontend
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_FRONTEND_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          source: "infra/"
+          target: "~/agentic"
+
+      - name: Deploy to EC2 Frontend
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_FRONTEND_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          script: |
+            set -e
+            mkdir -p ~/agentic/infra/caddy
+            cd ~/agentic
+            
+            if [ -f infra/.env ] && [ ! -f .env ]; then
+              cp infra/.env .env
+            fi
+
+            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+
+            docker compose -f infra/docker-compose.web.yml pull
+            docker compose -f infra/docker-compose.web.yml up -d --remove-orphans
+            docker image prune -f
+            echo "Instance 1 (Frontend) deployed successfully!"
+
+  deploy-backend:
+    name: Deploy Backend & DB (Instance 2)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync Infra configurations to EC2 Backend
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_BACKEND_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          source: "infra/"
+          target: "~/agentic"
+
+      - name: Deploy to EC2 Backend & DB
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_BACKEND_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          script: |
+            set -e
+            mkdir -p ~/agentic/infra/caddy
+            cd ~/agentic
+            
+            if [ -f infra/.env ] && [ ! -f .env ]; then
+              cp infra/.env .env
+            fi
+
+            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+
+            docker compose -f infra/docker-compose.api.yml pull
+            docker compose -f infra/docker-compose.api.yml up -d postgres redis
+            
+            # Wait for postgres to be ready before running migration
+            for i in $(seq 1 30); do
+              if docker compose -f infra/docker-compose.api.yml exec -T postgres pg_isready -U postgres >/dev/null 2>&1; then
+                break
+              fi
+              sleep 1
+            done
+
+            docker compose -f infra/docker-compose.api.yml run --rm api bun run db:migrate:deploy || true
+            docker compose -f infra/docker-compose.api.yml up -d --remove-orphans
+            docker image prune -f
+            echo "Instance 2 (Backend & DB) deployed successfully!"
+
+  deploy-voice:
+    name: Deploy LiveKit & Voice Agent (Instance 3)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync Infra configurations to EC2 Voice
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_VOICE_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          source: "infra/"
+          target: "~/agentic"
+
+      - name: Deploy to EC2 LiveKit & Voice
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_VOICE_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          script: |
+            set -e
+            mkdir -p ~/agentic/infra/caddy ~/agentic/infra/livekit
+            cd ~/agentic
+            
+            if [ -f infra/.env ] && [ ! -f .env ]; then
+              cp infra/.env .env
+            fi
+
+            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+
+            docker compose -f infra/docker-compose.voice.yml pull
+            docker compose -f infra/docker-compose.voice.yml up -d --remove-orphans
+            docker image prune -f
+            echo "Instance 3 (LiveKit & Voice) deployed successfully!"

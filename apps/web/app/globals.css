@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+}
+
+body {
+  background-color: #090d16;
+  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* LiveKit Audio Visualizer */
+.lk-audio-bar-visualizer {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 56px;
+  width: 224px;
+}
+
+.lk-audio-bar {
+  width: 9px;
+  border-radius: 9999px;
+  background: linear-gradient(to top, #2563eb, #6366f1, #34d399);
+  transition: height 75ms ease;
+  min-height: 14%;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.35);
+}
+
+.lk-audio-bar[data-lk-highlighted="true"] {
+  background: linear-gradient(to top, #a855f7, #6366f1, #38bdf8) !important;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.5) !important;
+}
+
+.lk-audio-bar-visualizer[data-lk-va-state="idle"] .lk-audio-bar,
+.lk-audio-bar-visualizer[data-lk-va-state="listening"] .lk-audio-bar {
+  background: rgba(100, 116, 139, 0.45);
+  box-shadow: none;
+}

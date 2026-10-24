@@ -1,0 +1,4 @@
+agentic.dabelwal.online {
+    encode gzip zstd
+    reverse_proxy web:3000
+}

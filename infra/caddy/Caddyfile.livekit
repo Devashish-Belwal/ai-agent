@@ -1,0 +1,4 @@
+livekit.dabelwal.online {
+    encode gzip zstd
+    reverse_proxy livekit:7880
+}

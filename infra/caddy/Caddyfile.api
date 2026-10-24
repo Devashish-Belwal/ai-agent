@@ -1,0 +1,8 @@
+api.dabelwal.online {
+    encode gzip zstd
+
+    # Support SSE streaming with immediate flushing
+    reverse_proxy api:4000 {
+        flush_interval -1
+    }
+}

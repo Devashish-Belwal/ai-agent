@@ -1,0 +1,68 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: agentic_api_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile.api:/etc/caddy/Caddyfile
+      - caddy_api_data:/data
+      - caddy_api_config:/config
+    depends_on:
+      - api
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agentic_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-agentic}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-agentic}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: agentic_redis
+    restart: always
+    volumes:
+      - redisdata:/data
+
+  api:
+    image: ${DOCKERHUB_USERNAME:-dabelwal}/agentic-api:latest
+    container_name: agentic_api_backend
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-agentic}
+      - REDIS_URL=redis://redis:6379
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL=https://api.dabelwal.online
+      - WEB_ORIGIN=https://agentic.dabelwal.online
+      - LIVEKIT_URL=wss://livekit.dabelwal.online
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "4000:4000"
+
+volumes:
+  caddy_api_data:
+  caddy_api_config:
+  pgdata:
+  redisdata:

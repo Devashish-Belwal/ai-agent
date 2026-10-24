@@ -1,0 +1,28 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: agentic_web_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile.web:/etc/caddy/Caddyfile
+      - caddy_web_data:/data
+      - caddy_web_config:/config
+    depends_on:
+      - web
+
+  web:
+    image: ${DOCKERHUB_USERNAME:-dabelwal}/agentic-web:latest
+    container_name: agentic_web_app
+    restart: always
+    environment:
+      - NEXT_PUBLIC_API_URL=https://api.dabelwal.online
+      - NEXT_PUBLIC_LIVEKIT_URL=wss://livekit.dabelwal.online
+    ports:
+      - "3000:3000"
+
+volumes:
+  caddy_web_data:
+  caddy_web_config:
