@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
-    "db:migrate:deploy": "bun run --cwd ../../packages/database db:migrate:deploy",
+    "db:migrate:deploy": "bun run --cwd ../../packages/database db:push",
     "db:push": "bun run --cwd ../../packages/database db:push"
   },
   "dependencies": {

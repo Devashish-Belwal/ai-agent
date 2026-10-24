@@ -207,7 +207,7 @@ jobs:
               sleep 1
             done
 
-            docker compose -f infra/docker-compose.api.yml run --rm api bun run db:migrate:deploy || true
+            docker compose -f infra/docker-compose.api.yml run --rm api bun run db:push
             docker compose -f infra/docker-compose.api.yml up -d --remove-orphans
             docker image prune -f
             echo "Instance 2 (Backend & DB) deployed successfully!"
