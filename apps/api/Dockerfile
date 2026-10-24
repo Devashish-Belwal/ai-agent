@@ -23,6 +23,12 @@ RUN cd packages/database && bunx prisma generate
 
 FROM oven/bun:1.3.14-slim AS runner
 
+# Install git and ca-certificates for cloning repositories
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY --from=builder /app /app
