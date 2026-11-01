@@ -1,5 +1,6 @@
 import { voice, defineAgent, type JobContext } from '@livekit/agents';
 import * as openai from '@livekit/agents-plugin-openai';
+import * as google from '@livekit/agents-plugin-google';
 import { createRagTools } from './tools.js';
 
 export default defineAgent({
@@ -104,24 +105,40 @@ CRITICAL OPERATING RULES:
       tools: ragTools,
     });
 
-    const modelName = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-mini';
-    console.log(`🧠 Initializing OpenAI Realtime session with model: ${modelName}`);
+    let realtimeLlm: any;
+    let providerLabel: string;
 
-    const realtimeLlm = new openai.realtime.RealtimeModel({
-      model: modelName,
-      voice: 'alloy',
-      apiKey: process.env.OPENAI_API_KEY,
-      turnDetection: {
-        type: 'server_vad',
-        threshold: 0.6,
-        prefix_padding_ms: 400,
-        silence_duration_ms: 1200,
-        create_response: true,
-        // MUST be false: avoids OpenAI server VAD false interrupts from ambient noise, breathing, or comfort noise.
-        // Interruption is triggered on-demand via the Interrupt button.
-        interrupt_response: false,
-      },
-    });
+    if (process.env.GEMINI_API_KEY) {
+      const geminiModel = process.env.GEMINI_LIVE_MODEL || 'gemini-2.0-flash-exp';
+      const geminiVoice = (process.env.GEMINI_LIVE_VOICE as any) || 'Puck';
+      console.log(`🧠 Initializing Google Gemini Live session with model: ${geminiModel}, voice: ${geminiVoice}`);
+      realtimeLlm = new google.realtime.RealtimeModel({
+        model: geminiModel,
+        voice: geminiVoice,
+        apiKey: process.env.GEMINI_API_KEY,
+      });
+      providerLabel = 'Google Gemini Live';
+    } else {
+      const modelName = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-mini';
+      console.log(`🧠 Initializing OpenAI Realtime session with model: ${modelName}`);
+
+      realtimeLlm = new openai.realtime.RealtimeModel({
+        model: modelName,
+        voice: 'alloy',
+        apiKey: process.env.OPENAI_API_KEY,
+        turnDetection: {
+          type: 'server_vad',
+          threshold: 0.6,
+          prefix_padding_ms: 400,
+          silence_duration_ms: 1200,
+          create_response: true,
+          // MUST be false: avoids OpenAI server VAD false interrupts from ambient noise, breathing, or comfort noise.
+          // Interruption is triggered on-demand via the Interrupt button.
+          interrupt_response: false,
+        },
+      });
+      providerLabel = 'OpenAI Realtime';
+    }
 
     const session = new voice.AgentSession({
       llm: realtimeLlm,
@@ -162,6 +179,6 @@ CRITICAL OPERATING RULES:
       },
     });
 
-    console.log(`✨ OpenAI Realtime Agent session active for participant ${participant.identity}`);
+    console.log(`✨ ${providerLabel} Agent session active for participant ${participant.identity}`);
   },
 });

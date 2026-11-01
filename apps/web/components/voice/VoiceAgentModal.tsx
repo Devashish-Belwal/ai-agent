@@ -196,7 +196,7 @@ export function VoiceAgentModal({
                   </span>
                 )}
               </h3>
-              <p className="text-[11px] text-slate-400">OpenAI Realtime • {repoName}</p>
+              <p className="text-[11px] text-slate-400">Live Voice Agent • {repoName}</p>
             </div>
           </div>
           <button
