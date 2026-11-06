@@ -11,7 +11,7 @@ import { environment } from '../config/environment.js';
 export class RetrievalController {
   static async search(req: Request, res: Response) {
     try {
-      const { repositoryId, query, topK = 5 } = req.body;
+      const { repositoryId, query, topK = 5, fastPath } = req.body;
       if (!repositoryId || !query) {
         return res.status(400).json({ error: 'repositoryId and query are required' });
       }
@@ -34,6 +34,7 @@ export class RetrievalController {
         query,
         topK,
         includeGraphNeighbors: true,
+        fastPath: Boolean(fastPath),
       });
 
       return res.json({

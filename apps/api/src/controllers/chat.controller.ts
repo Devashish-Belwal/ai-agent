@@ -91,16 +91,31 @@ export class ChatController {
         let fullAnswer = '';
 
         if (environment.GEMINI_API_KEY) {
-          const ai = new GoogleGenAI({ apiKey: environment.GEMINI_API_KEY });
-          const responseStream = await ai.models.generateContentStream({
-            model: 'gemini-2.0-flash',
-            contents: messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n'),
-          });
+          try {
+            const ai = new GoogleGenAI({ apiKey: environment.GEMINI_API_KEY });
+            const responseStream = await ai.models.generateContentStream({
+              model: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
+              contents: messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n'),
+            });
 
-          for await (const chunk of responseStream) {
-            const text = chunk.text || '';
-            fullAnswer += text;
-            sendEvent({ type: 'token', token: text });
+            for await (const chunk of responseStream) {
+              const text = chunk.text || '';
+              fullAnswer += text;
+              sendEvent({ type: 'token', token: text });
+            }
+          } catch (streamErr) {
+            console.error('Gemini streaming error, using grounded context fallback:', streamErr);
+            if (includedChunks.length === 0) {
+              fullAnswer = `I cannot answer this question based on the provided codebase context because no relevant files or symbols were found for "${question}".`;
+            } else {
+              fullAnswer = `Based on the repository context:\n` +
+                `The requested functionality is defined in [${includedChunks[0].filePath}#L${includedChunks[0].startLine}-L${includedChunks[0].endLine}].\n\n` +
+                `Here is the relevant code snippet:\n\`\`\`\n${includedChunks[0].content.slice(0, 400)}\n\`\`\``;
+            }
+            for (const token of fullAnswer.split(' ')) {
+              sendEvent({ type: 'token', token: token + ' ' });
+              await new Promise((r) => setTimeout(r, 15));
+            }
           }
         } else if (environment.OPENAI_API_KEY) {
           const openai = new OpenAI({ apiKey: environment.OPENAI_API_KEY });
@@ -161,12 +176,18 @@ export class ChatController {
       // Non-SSE standard JSON response
       let fullAnswer = '';
       if (environment.GEMINI_API_KEY) {
-        const ai = new GoogleGenAI({ apiKey: environment.GEMINI_API_KEY });
-        const resp = await ai.models.generateContent({
-          model: 'gemini-2.0-flash',
-          contents: messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n'),
-        });
-        fullAnswer = resp.text || '';
+        try {
+          const ai = new GoogleGenAI({ apiKey: environment.GEMINI_API_KEY });
+          const resp = await ai.models.generateContent({
+            model: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
+            contents: messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n'),
+          });
+          fullAnswer = resp.text || '';
+        } catch {
+          if (includedChunks.length > 0) {
+            fullAnswer = `Relevant implementation in [${includedChunks[0].filePath}#L${includedChunks[0].startLine}-L${includedChunks[0].endLine}].`;
+          }
+        }
       } else if (environment.OPENAI_API_KEY) {
         const openai = new OpenAI({ apiKey: environment.OPENAI_API_KEY });
         const resp = await openai.chat.completions.create({

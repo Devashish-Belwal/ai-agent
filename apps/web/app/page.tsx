@@ -103,7 +103,7 @@ export default function HomePage() {
           </span>
         </div>
 
-        <RepositoryList repositories={repositories} />
+        <RepositoryList repositories={repositories} onRepoUpdated={loadRepos} />
       </div>
 
       <RegisterModal

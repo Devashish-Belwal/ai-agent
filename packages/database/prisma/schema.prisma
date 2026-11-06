@@ -140,6 +140,7 @@ enum RepoStatus {
   INDEXING
   READY
   ERROR
+  STOPPED
 }
 
 model Repository {
@@ -245,6 +246,7 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
+  CANCELLED
 }
 
 model IngestionJob {

@@ -1,4 +1,4 @@
-import { executeVectorSearch, executeGraphNeighborhoodTraversal } from '@workspace/database';
+import { executeVectorSearch, executeLexicalSearch, executeGraphNeighborhoodTraversal } from '@workspace/database';
 import type { EmbeddingProvider } from './embedding-provider.js';
 import type { RetrievedChunk } from './citation-validator.js';
 
@@ -9,6 +9,7 @@ export interface RetrievalOptions {
   topK?: number;
   minSimilarity?: number;
   includeGraphNeighbors?: boolean;
+  fastPath?: boolean;
 }
 
 export class RetrievalService {
@@ -20,14 +21,54 @@ export class RetrievalService {
 
   async retrieve(options: RetrievalOptions): Promise<{ chunks: RetrievedChunk[]; latencyMs: number }> {
     const start = performance.now();
-    const [queryEmbedding] = await this.embeddingProvider.embedBatch([options.query]);
+    const topK = options.topK ?? 8;
+
+    // Fast-path: Check instantaneous PostgreSQL keyword/lexical search
+    if (options.fastPath) {
+      try {
+        const lexicalRows = await executeLexicalSearch({
+          repositoryId: options.repositoryId,
+          commitSha: options.commitSha,
+          query: options.query,
+          limit: topK,
+        });
+
+        if (lexicalRows.length > 0) {
+          const chunks: RetrievedChunk[] = lexicalRows.map((r) => ({
+            chunkId: r.id,
+            filePath: r.filePath,
+            startLine: r.startLine,
+            endLine: r.endLine,
+            content: r.content,
+            similarity: r.similarity,
+          }));
+
+          return {
+            chunks,
+            latencyMs: Math.round(performance.now() - start),
+          };
+        }
+      } catch (err) {
+        console.warn('Fast-path lexical search failed, falling back to vector search:', err);
+      }
+    }
+
+    let queryEmbedding: number[] = [];
+
+    try {
+      const [embedding] = await this.embeddingProvider.embedBatch([options.query]);
+      queryEmbedding = embedding || [];
+    } catch (embedErr) {
+      console.warn('Embedding generation error, falling back to lexical code search:', embedErr);
+      queryEmbedding = new Array(768).fill(0);
+    }
 
     const vectorResults = await executeVectorSearch({
       repositoryId: options.repositoryId,
       commitSha: options.commitSha,
       query: options.query,
       embedding: queryEmbedding,
-      topK: options.topK ?? 8,
+      topK,
       minSimilarity: options.minSimilarity ?? 0.05,
     });
 

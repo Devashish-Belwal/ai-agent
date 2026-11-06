@@ -29,7 +29,8 @@ export function createRagTools(options: {
             body: JSON.stringify({
               repositoryId: options.repositoryId,
               query,
-              topK: 3,
+              topK: 2,
+              fastPath: true,
             }),
           });
 
@@ -48,13 +49,14 @@ export function createRagTools(options: {
             filePath: topChunk.filePath,
             startLine: topChunk.startLine,
             endLine: topChunk.endLine,
-            snippet: topChunk.content.slice(0, 200),
+            snippet: topChunk.content.slice(0, 160),
           });
 
           return data.chunks
+            .slice(0, 2)
             .map(
               (c) =>
-                `File: ${c.filePath} (lines ${c.startLine}-${c.endLine}):\n${c.content.slice(0, 300)}`
+                `File: ${c.filePath} (lines ${c.startLine}-${c.endLine}):\n${c.content.slice(0, 160)}`
             )
             .join('\n---\n');
         } catch (err: any) {

@@ -98,10 +98,11 @@ export default defineAgent({
 CRITICAL OPERATING RULES:
 1. The active repository is "${repoName}" (${repositoryId}). It is ALREADY active and fully indexed. NEVER ask the user what repository they want to talk about or explore!
 2. When the user asks any question about architecture, auth, functions, or how something works, IMMEDIATELY call your 'searchCodebase' tool with relevant search keywords.
-3. Do NOT ask for clarification before calling 'searchCodebase'—always search the codebase first!
-4. You may inspect a specific file with 'readFileRange' if needed, but prioritize answering as soon as you have sufficient context. Do NOT run repetitive or redundant searches before answering.
-5. Keep your verbal answers direct, concise, and conversational (2-4 spoken sentences).
-6. Do not read long snippets of raw code or syntax verbatim—the user's browser automatically opens and highlights the exact code lines in their code viewer drawer!`,
+3. IMMEDIATE VERBAL ACKNOWLEDGMENT: Speak immediately upon receiving a query with a brief, natural confirmation phrase (e.g. "Looking that up in the codebase...", "Let me check the auth implementation...", or "Checking the routes in ${repoName}...") while retrieving code. This ensures instant verbal feedback before delivering your explanation.
+4. Do NOT ask for clarification before calling 'searchCodebase'—always search the codebase first!
+5. You may inspect a specific file with 'readFileRange' if needed, but prioritize answering as soon as you have sufficient context. Do NOT run repetitive or redundant searches before answering.
+6. Keep your verbal answers direct, concise, and conversational (2-4 spoken sentences).
+7. Do not read long snippets of raw code or syntax verbatim—the user's browser automatically opens and highlights the exact code lines in their code viewer drawer!`,
       tools: ragTools,
     });
 
@@ -109,7 +110,7 @@ CRITICAL OPERATING RULES:
     let providerLabel: string;
 
     if (process.env.GEMINI_API_KEY) {
-      const geminiModel = process.env.GEMINI_LIVE_MODEL || 'gemini-2.0-flash-exp';
+      const geminiModel = process.env.GEMINI_LIVE_MODEL || 'gemini-2.5-flash-native-audio-preview-12-2025';
       const geminiVoice = (process.env.GEMINI_LIVE_VOICE as any) || 'Puck';
       console.log(`🧠 Initializing Google Gemini Live session with model: ${geminiModel}, voice: ${geminiVoice}`);
       realtimeLlm = new google.realtime.RealtimeModel({
@@ -128,9 +129,9 @@ CRITICAL OPERATING RULES:
         apiKey: process.env.OPENAI_API_KEY,
         turnDetection: {
           type: 'server_vad',
-          threshold: 0.6,
-          prefix_padding_ms: 400,
-          silence_duration_ms: 1200,
+          threshold: 0.5,
+          prefix_padding_ms: 200,
+          silence_duration_ms: 450,
           create_response: true,
           // MUST be false: avoids OpenAI server VAD false interrupts from ambient noise, breathing, or comfort noise.
           // Interruption is triggered on-demand via the Interrupt button.
@@ -143,7 +144,7 @@ CRITICAL OPERATING RULES:
     const session = new voice.AgentSession({
       llm: realtimeLlm,
       userAwayTimeout: 120,
-      maxToolSteps: 3,
+      maxToolSteps: 2,
       turnHandling: {
         // Keep turn boundaries with the realtime model so the SDK does not run its
         // own audio-activity interruption path while the browser mic is muted.

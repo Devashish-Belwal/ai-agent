@@ -25,6 +25,18 @@ export async function registerRepository(url: string, defaultBranch = 'main') {
   return res.json();
 }
 
+export async function stopRepositoryIndexing(id: string) {
+  const res = await fetch(`${API_BASE}/api/v1/repositories/${id}/stop`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to stop indexing' }));
+    throw new Error(err.error || 'Failed to stop indexing');
+  }
+  return res.json();
+}
+
 export async function fetchFileContent(repositoryId: string, filePath: string) {
   const res = await fetch(
     `${API_BASE}/api/v1/repositories/${repositoryId}/file?path=${encodeURIComponent(filePath)}`,

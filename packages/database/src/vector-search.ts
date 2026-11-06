@@ -12,6 +12,75 @@ export interface VectorSearchResult {
   similarity: number;
 }
 
+export async function executeLexicalSearch(params: {
+  repositoryId: string;
+  commitSha?: string;
+  query: string;
+  limit?: number;
+}): Promise<VectorSearchResult[]> {
+  const sql = getDatabaseClient();
+  const limit = params.limit ?? 4;
+  const rawTokens = params.query.match(/[a-zA-Z0-9_.-]{3,}/g) || [];
+  const stopWords = new Set([
+    'how', 'does', 'where', 'what', 'the', 'and', 'for', 'with', 'from',
+    'this', 'that', 'explain', 'tell', 'show', 'code', 'about', 'work', 'works'
+  ]);
+  const keywords = rawTokens.filter((t) => !stopWords.has(t.toLowerCase())).slice(0, 3);
+
+  if (keywords.length === 0) return [];
+
+  const results: VectorSearchResult[] = [];
+  const seenIds = new Set<string>();
+
+  for (const kw of keywords) {
+    const termPattern = `%${kw}%`;
+    const rows = params.commitSha
+      ? await sql<VectorSearchResult[]>`
+          SELECT 
+            id,
+            repository_id AS "repositoryId",
+            commit_sha AS "commitSha",
+            file_path AS "filePath",
+            language,
+            start_line AS "startLine",
+            end_line AS "endLine",
+            content,
+            0.9 AS similarity
+          FROM code_chunks
+          WHERE repository_id = ${params.repositoryId}::uuid
+            AND commit_sha = ${params.commitSha}
+            AND (file_path ILIKE ${termPattern} OR content ILIKE ${termPattern})
+          LIMIT ${limit};
+        `
+      : await sql<VectorSearchResult[]>`
+          SELECT 
+            id,
+            repository_id AS "repositoryId",
+            commit_sha AS "commitSha",
+            file_path AS "filePath",
+            language,
+            start_line AS "startLine",
+            end_line AS "endLine",
+            content,
+            0.9 AS similarity
+          FROM code_chunks
+          WHERE repository_id = ${params.repositoryId}::uuid
+            AND (file_path ILIKE ${termPattern} OR content ILIKE ${termPattern})
+          LIMIT ${limit};
+        `;
+
+    for (const r of rows) {
+      if (!seenIds.has(r.id)) {
+        seenIds.add(r.id);
+        results.push(r);
+      }
+    }
+    if (results.length >= limit) break;
+  }
+
+  return results.slice(0, limit);
+}
+
 export async function executeVectorSearch(params: {
   repositoryId: string;
   commitSha?: string;

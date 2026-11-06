@@ -4,7 +4,7 @@ import { z } from 'zod';
 // REPOSITORY SCHEMAS & DTOS
 // ==========================================
 
-export const RepositoryStatusEnum = z.enum(['PENDING', 'INDEXING', 'READY', 'ERROR']);
+export const RepositoryStatusEnum = z.enum(['PENDING', 'INDEXING', 'READY', 'ERROR', 'STOPPED']);
 export type RepositoryStatus = z.infer<typeof RepositoryStatusEnum>;
 
 export const RegisterRepositorySchema = z.object({
@@ -35,7 +35,7 @@ export type RepositoryDto = z.infer<typeof RepositoryDtoSchema>;
 // INGESTION & JOB SCHEMAS
 // ==========================================
 
-export const IngestionJobStatusEnum = z.enum(['QUEUED', 'PROCESSING', 'COMPLETED', 'FAILED']);
+export const IngestionJobStatusEnum = z.enum(['QUEUED', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED']);
 export type IngestionJobStatus = z.infer<typeof IngestionJobStatusEnum>;
 
 export const IngestionJobDtoSchema = z.object({

@@ -16,6 +16,7 @@ router.get('/health', (_req, res) => {
 router.post('/repositories', RepositoryController.register);
 router.get('/repositories', RepositoryController.list);
 router.get('/repositories/:id', RepositoryController.getById);
+router.post('/repositories/:id/stop', RepositoryController.stop);
 router.get('/repositories/:id/file', RepositoryController.getFile);
 
 // Chat & RAG

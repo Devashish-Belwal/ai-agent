@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { prisma } from '@workspace/database';
 import { RegisterRepositorySchema } from '@workspace/protocol';
-import { enqueueRepositoryIngestion } from '../services/ingestion-queue.js';
+import { enqueueRepositoryIngestion, stopRepositoryIngestion } from '../services/ingestion-queue.js';
 
 export class RepositoryController {
   static async register(req: Request, res: Response) {
@@ -91,6 +91,39 @@ export class RepositoryController {
       });
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
+    }
+  }
+
+  static async stop(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const repo = await prisma.repository.findUnique({
+        where: { id },
+      });
+
+      if (!repo) {
+        return res.status(404).json({ error: 'Repository not found' });
+      }
+
+      if (repo.status !== 'INDEXING' && repo.status !== 'PENDING') {
+        return res.status(400).json({
+          error: `Repository is not currently being indexed (status is ${repo.status})`,
+        });
+      }
+
+      const updatedRepo = await stopRepositoryIngestion(id);
+
+      return res.json({
+        success: true,
+        message: 'Repository indexing stopped',
+        repository: {
+          ...updatedRepo,
+          totalSizeBytes: Number(updatedRepo.totalSizeBytes),
+        },
+      });
+    } catch (err: any) {
+      console.error('Failed to stop repository indexing:', err);
+      return res.status(500).json({ error: err.message || 'Internal server error' });
     }
   }
 

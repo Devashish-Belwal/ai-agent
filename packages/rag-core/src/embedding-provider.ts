@@ -19,34 +19,60 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
   readonly dimensions: number;
   private apiKey: string;
 
-  constructor(apiKey: string, model = 'text-embedding-004', dimensions = 768) {
+  constructor(apiKey: string, model = 'gemini-embedding-001', dimensions = 768) {
     this.apiKey = apiKey;
     this.model = model;
     this.dimensions = dimensions;
   }
 
-  async embedBatch(texts: string[]): Promise<number[][]> {
+  async embedBatch(texts: string[], maxRetries?: number): Promise<number[][]> {
     if (texts.length === 0) return [];
+    const retries = maxRetries ?? (texts.length <= 2 ? 1 : 5);
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:batchEmbedContents?key=${this.apiKey}`;
     const requests = texts.map((t) => ({
       model: `models/${this.model}`,
       content: { parts: [{ text: t }] },
+      outputDimensionality: this.dimensions,
     }));
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests }),
-    });
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests }),
+      });
 
-    if (!res.ok) {
+      if (res.ok) {
+        const data = (await res.json()) as { embeddings: Array<{ values: number[] }> };
+        return data.embeddings.map((e) => e.values);
+      }
+
       const errText = await res.text();
+
+      // If Rate limited (429 / RESOURCE_EXHAUSTED), back off and retry
+      if ((res.status === 429 || res.status === 503) && attempt < retries) {
+        let waitMs = 25000 * Math.pow(1.5, attempt);
+        try {
+          const errJson = JSON.parse(errText);
+          const retryDetail = errJson.error?.details?.find((d: any) => d.retryDelay);
+          if (retryDetail?.retryDelay) {
+            const parsedSeconds = parseFloat(retryDetail.retryDelay.replace('s', ''));
+            if (!isNaN(parsedSeconds)) {
+              waitMs = Math.ceil(parsedSeconds * 1000) + 1000;
+            }
+          }
+        } catch {}
+
+        console.warn(`⏳ Gemini rate limit reached (${res.status}). Waiting ${Math.round(waitMs / 1000)}s before retry ${attempt + 1}/${retries}...`);
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+
       throw new Error(`Gemini Embedding API error [${res.status}]: ${errText}`);
     }
 
-    const data = (await res.json()) as { embeddings: Array<{ values: number[] }> };
-    return data.embeddings.map((e) => e.values);
+    throw new Error(`Gemini Embedding API failed after ${retries} retries`);
   }
 }
 
@@ -126,14 +152,27 @@ export class BatchEmbedder {
   static async embedChunks(
     chunks: CodeChunk[],
     provider: EmbeddingProvider,
-    options?: { batchSize?: number; onProgress?: (processed: number, total: number) => void }
+    options?: {
+      batchSize?: number;
+      onProgress?: (processed: number, total: number) => void | Promise<void>;
+      shouldStop?: () => Promise<boolean> | boolean;
+    }
   ): Promise<EmbeddedChunk[]> {
     const batchSize = options?.batchSize ?? 30;
     const results: EmbeddedChunk[] = [];
 
     for (let i = 0; i < chunks.length; i += batchSize) {
+      if (options?.shouldStop && (await options.shouldStop())) {
+        throw new Error('Embeddings generation stopped by user');
+      }
+
       const batch = chunks.slice(i, i + batchSize);
-      const texts = batch.map((c) => `File: ${c.filePath}\n${c.content}`);
+      const texts = batch.map((c) => {
+        const header = `File: ${c.filePath}#L${c.startLine}-L${c.endLine}\n`;
+        const maxLen = 1000;
+        const body = c.content.length > maxLen ? c.content.slice(0, maxLen) : c.content;
+        return header + body;
+      });
       const embeddings = await provider.embedBatch(texts);
 
       for (let j = 0; j < batch.length; j++) {
@@ -143,7 +182,15 @@ export class BatchEmbedder {
         });
       }
 
-      options?.onProgress?.(Math.min(i + batchSize, chunks.length), chunks.length);
+      await options?.onProgress?.(Math.min(i + batchSize, chunks.length), chunks.length);
+
+      // Throttling delay between batches to stay under free tier 30k tokens/min limit
+      if (i + batchSize < chunks.length) {
+        if (options?.shouldStop && (await options.shouldStop())) {
+          throw new Error('Embeddings generation stopped by user');
+        }
+        await new Promise((r) => setTimeout(r, 1500));
+      }
     }
 
     return results;
