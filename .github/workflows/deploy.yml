@@ -270,6 +270,6 @@ jobs:
             export DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME}"
 
             docker compose -f infra/docker-compose.voice.yml pull
-            docker compose -f infra/docker-compose.voice.yml up -d --remove-orphans
+            docker compose -f infra/docker-compose.voice.yml up -d --force-recreate --remove-orphans
             docker image prune -f
             echo "Instance 3 (LiveKit & Voice) deployed successfully!"
