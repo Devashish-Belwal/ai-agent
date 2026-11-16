@@ -88,13 +88,45 @@ export function VoiceAgentModal({
 
   const handleRoomError = useCallback((err: Error) => {
     console.warn('LiveKit Room notice:', err.message);
+    const msg = (err.message || '').toLowerCase();
     if (
-      !err.message.includes('negotiation timed out') &&
-      !err.message.includes('cannot establish a signal session')
+      !msg.includes('negotiation timed out') &&
+      !msg.includes('cannot establish a signal session') &&
+      !msg.includes('could not establish signal connection') &&
+      !msg.includes('room connection has timed out') &&
+      !msg.includes('signal connection aborted') &&
+      !msg.includes('connection attempt aborted')
     ) {
       setError(err.message);
     }
   }, []);
+
+  const startSession = useCallback(() => {
+    if (!repositoryId) return;
+
+    setConnecting(true);
+    setError('');
+    setIsMuted(true);
+    setToken('');
+    setServerUrl('');
+
+    // Generate unique room ID per session to avoid colliding with lingering rooms
+    const sessionSuffix = Math.random().toString(36).substring(2, 8);
+    const roomName = `repo-${repositoryId}-${sessionSuffix}`;
+
+    requestLiveKitToken(roomName, 'Developer', repositoryId)
+      .then((data) => {
+        setToken(data.token);
+        const url = process.env.NEXT_PUBLIC_LIVEKIT_URL || data.serverUrl;
+        setServerUrl(url);
+        setConnecting(false);
+      })
+      .catch((err) => {
+        console.error('Token fetch error:', err);
+        setError(err.message || 'Failed to fetch LiveKit token');
+        setConnecting(false);
+      });
+  }, [repositoryId]);
 
   // Request fresh token with a unique session suffix whenever opened
   useEffect(() => {
@@ -113,27 +145,8 @@ export function VoiceAgentModal({
     if (requestedRef.current) return;
     requestedRef.current = true;
 
-    setConnecting(true);
-    setError('');
-    setIsMuted(true);
-
-    // Generate unique room ID per session to avoid colliding with lingering rooms
-    const sessionSuffix = Math.random().toString(36).substring(2, 8);
-    const roomName = `repo-${repositoryId}-${sessionSuffix}`;
-
-    requestLiveKitToken(roomName, 'Developer', repositoryId)
-      .then((data) => {
-        setToken(data.token);
-        const url = process.env.NEXT_PUBLIC_LIVEKIT_URL || data.serverUrl;
-        setServerUrl(url);
-        setConnecting(false);
-      })
-      .catch((err) => {
-        console.error('Token fetch error:', err);
-        setError(err.message || 'Failed to fetch LiveKit token');
-        setConnecting(false);
-      });
-  }, [isOpen, repositoryId]);
+    startSession();
+  }, [isOpen, repositoryId, startSession]);
 
   // Close on Escape key
   useEffect(() => {
@@ -226,8 +239,15 @@ export function VoiceAgentModal({
             )}
 
             {error && (
-              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs text-center max-w-sm">
-                {error}
+              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs text-center max-w-sm flex flex-col items-center gap-2">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  onClick={startSession}
+                  className="px-3 py-1 rounded-md bg-rose-900/60 hover:bg-rose-800/80 text-rose-200 border border-rose-700/60 font-medium transition cursor-pointer"
+                >
+                  Retry Connection
+                </button>
               </div>
             )}
 
